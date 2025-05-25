@@ -14,6 +14,7 @@ from contextlib import contextmanager
 @contextmanager
 def tor_proxy(port):
     from tempfile import mkstemp
+
     fd, tmp = mkstemp(".torrc")
     fd_datadir, data_dir = mkstemp(".data")
     os.unlink(data_dir)
@@ -36,12 +37,20 @@ def lambda_handler(event, context):
             try:
                 time.sleep(5)
                 proxy = SOCKSProxyManager(f"socks5h://localhost:{port}/")
-                s = proxy.request('GET', 'https://www.facebookwkhpilnemxj7asaniu7vnjjbiltxjqhye3mhbshg7kx5tfyd.onion/', timeout=17.0)
-                res = {'X-FB-Connection-Quality': s.headers.get('X-FB-Connection-Quality')}
-                return json.dumps(res)
+                s = proxy.request(
+                    "GET",
+                    "https://www.facebookwkhpilnemxj7asaniu7vnjjbiltxjqhye3mhbshg7kx5tfyd.onion/",
+                    timeout=17.0,
+                )
+                res = {
+                    k: v
+                    for k, v in s.headers.items()
+                    if k in ["X-FB-Connection-Quality", "X-FB-Debug", "Set-Cookie"]
+                }
+                res["status"] = s.status
+                return res
             except Exception as e:
                 time.sleep(3)
                 count -= 1
 
-    return '{}'
-
+    return "{}"
