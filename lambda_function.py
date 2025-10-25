@@ -9,6 +9,7 @@ import socks
 from random import randrange
 import json
 from contextlib import contextmanager
+import logging
 
 
 @contextmanager
@@ -29,28 +30,38 @@ def tor_proxy(port):
     process.terminate()
 
 
+def check_onion(url, port, count=3, timeout=30):
+    logger = logging.getLogger(__name__)
+    logger.setLevel(logging.DEBUG)
+    circuit_wait = 10
+    while count > 0:
+        try:
+            time.sleep(circuit_wait)
+            proxy = SOCKSProxyManager(f"socks5h://localhost:{port}/")
+            logger.info(f"Connecting to {url}")
+            s = proxy.request("GET", url, timeout=timeout)
+            res = {
+                k: v
+                for k, v in s.headers.items()
+                if k in ["X-FB-Connection-Quality", "X-FB-Debug", "Set-Cookie"]
+            }
+            res["status"] = s.status
+            logger.debug(res)
+            return res
+        except Exception as e:
+            count -= 1
+            circuit_wait = 0
+            logger.error(f"{e} !! {count} attempts left")
+    return {}
+
+
 def lambda_handler(event, context):
     port = 9050
-    with tor_proxy(port):
-        count = 10
-        while count > 0:
-            try:
-                time.sleep(5)
-                proxy = SOCKSProxyManager(f"socks5h://localhost:{port}/")
-                s = proxy.request(
-                    "GET",
-                    "https://www.facebookwkhpilnemxj7asaniu7vnjjbiltxjqhye3mhbshg7kx5tfyd.onion/",
-                    timeout=17.0,
-                )
-                res = {
-                    k: v
-                    for k, v in s.headers.items()
-                    if k in ["X-FB-Connection-Quality", "X-FB-Debug", "Set-Cookie"]
-                }
-                res["status"] = s.status
-                return res
-            except Exception as e:
-                time.sleep(3)
-                count -= 1
 
-    return "{}"
+    with tor_proxy(port):
+        res = check_onion(
+            "https://www.facebookwkhpilnemxj7asaniu7vnjjbiltxjqhye3mhbshg7kx5tfyd.onion/",
+            port=port,
+        )
+
+    return res
